@@ -1,0 +1,158 @@
+---
+title: "EDA_final"
+author: "Swetaswa Basak 19MIS1049"
+date: "21/03/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library("dplyr")
+library("GGally")
+library("caret")
+library("reshape")
+library("tidyr")
+options(repr.plot.width = 18, repr.plot.height = 8)
+```
+
+```{r}
+crop_data <- read.csv("D:\\CSE3506_EDA\\project\\Crop_recommendation.csv")
+head(crop_data)
+```
+
+```{r}
+table(unique(crop_data$label))
+```
+
+```{r}
+crop_data <- crop_data %>%
+  mutate(label = factor(label))
+```
+
+```{r}
+summary(crop_data)
+```
+
+```{r}
+#Separating Label column for model building
+# Breaking "input" and "output"
+x <- crop_data[,1:7]
+y <- crop_data[,8]
+```
+
+```{r}
+par(mfrow=c(1,7), mar=c(2,2,2,2))
+  for (i in 1:7) {
+    boxplot(x[,i], main=names(crop_data)[i])
+  }
+```
+
+```{r}
+ggplot(gather(crop_data[1:7]), aes(value, fill=key)) + 
+  geom_histogram(bins = 5) + 
+  facet_wrap(~key, scales = 'free_x')
+```
+
+```{r}
+crop_data %>% 
+  pivot_longer(N:rainfall, names_to = "Feature", values_to = "value") %>% 
+  ggplot(aes(x = value, fill = label)) +
+  geom_histogram(alpha = 0.8,binwidth=100) +
+  labs(x = "Value", y = "Count", fill = NULL) +
+  theme_bw() +
+  facet_wrap(~Feature, scales = "free")
+```
+
+```{r}
+crop_data %>% 
+  pivot_longer(N:rainfall, names_to = "Feature", values_to = "value") %>% 
+  ggplot(aes(x = value, fill = label)) +
+  geom_density(alpha = 0.5) +
+  labs(fill = NULL) +
+  theme_bw() +
+  facet_wrap(~Feature, scales = "free")
+```
+
+```{r}
+#Creating a 80-20 split
+validation_index <- createDataPartition(crop_data$label, p=0.80, list=FALSE)
+```
+
+```{r}
+validation <- crop_data[-validation_index,]
+crop_data2 <- crop_data[validation_index,]
+```
+
+```{r}
+control <- trainControl(method="cv", number=10)
+metric <- "Accuracy"
+```
+
+```{r}
+#Linear Discriminant Analysis
+set.seed(7)
+fit.lda <- train(label~., data=crop_data2, 
+                 method="lda", metric=metric, trControl=control)
+```
+
+```{r}
+fit.lda
+```
+
+```{r}
+#CART Algo
+set.seed(7)
+fit.cart <- train(label~., data=crop_data2, 
+                  method="rpart", metric=metric, trControl=control)
+```
+
+```{r}
+fit.cart
+```
+
+```{r}
+#SVM algo
+set.seed(7)
+fit.svm <- train(label~., data=crop_data2,
+                 method="svmRadial", metric=metric, trControl=control)
+```
+
+```{r}
+fit.svm
+```
+
+```{r}
+#KNN algo
+set.seed(7)
+fit.knn<-train(label~.,data=crop_data2,
+               method="knn",metric=metric,trControl=control)
+```
+
+```{r}
+fit.knn
+```
+
+```{r}
+#Comparing the Results of all the model and choosing the best among them
+results <- resamples(list(lda=fit.lda, cart=fit.cart, svm=fit.svm,knn=fit.knn))
+summary(results)
+```
+
+```{r}
+results
+```
+
+
+```{r}
+dotplot(results)
+```
+
+```{r}
+#Since, SVM gives a better result, we use it for prediction purpose.
+predictions <- predict(fit.svm, validation)
+confusionMatrix(predictions, validation$label)
+```
+
